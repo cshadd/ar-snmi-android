@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">AR Surface Navigation for Mobility Impairments</string>
+    <string name="action_exit">Exit</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="error_prefix">io.github.cshadd Error: %1$s</string>
+    <string name="warning_prefix">io.github.cshadd Warning: %1$s</string>
+</resources>
