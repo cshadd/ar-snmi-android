@@ -14,7 +14,6 @@ import com.google.ar.core.Camera;
 import com.google.ar.core.Frame;
 import com.google.ar.core.Pose;
 import com.google.ar.core.Session;
-import com.google.ar.core.Trackable;
 import com.google.ar.core.TrackingState;
 import com.google.ar.core.exceptions.NotYetAvailableException;
 import com.google.ar.sceneform.AnchorNode;
@@ -25,7 +24,6 @@ import com.google.ar.sceneform.math.Vector3;
 import com.google.ar.sceneform.rendering.ModelRenderable;
 import com.google.ar.sceneform.ux.TransformableNode;
 import com.google.ar.sceneform.ux.TransformationSystem;
-
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.JavaCameraView;
@@ -33,9 +31,16 @@ import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
+import org.opencv.core.MatOfPoint;
+import org.opencv.core.Point;
+import org.opencv.core.Rect;
+import org.opencv.core.Scalar;
 import org.opencv.imgcodecs.Imgcodecs;
+import org.opencv.imgproc.Imgproc;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 public class SurfaceProcessor
     implements JavaCameraView.CvCameraViewListener2 {
@@ -52,7 +57,7 @@ public class SurfaceProcessor
     private ModelRenderable cautionModelRenderable;
     private CJavaCameraViewWrapper javaCameraView;
     private BaseLoaderCallback openCVLoaderCallback;
-    private Mat openCVMat;
+    private Mat openCVProcessedMat;
 
     SurfaceProcessor(CommonActivity activity) { this.activity = activity; }
 
@@ -94,8 +99,8 @@ public class SurfaceProcessor
     }
 
     void onCreate() {
-        arFragment = (CARFragmentWrapper)activity.getSupportFragmentManager()
-                .findFragmentById(R.id.ar);
+        /*arFragment = (CARFragmentWrapper)activity.getSupportFragmentManager()
+                .findFragmentById(R.id.ar);*/
         javaCameraView = activity.findViewById(R.id.java_cam);
 
         if (DEBUG_OPENCV_MODE) {
@@ -254,21 +259,45 @@ public class SurfaceProcessor
         }
     }
 
+    private Mat processContour(Mat mat) {
+        final List<MatOfPoint> contours = new ArrayList<>();
+        final Mat processed = new Mat();
+        mat.copyTo(processed);
+        Imgproc.cvtColor(mat, mat, Imgproc.COLOR_BGR2GRAY);
+        Imgproc.findContours(mat, contours, new Mat(), Imgproc.RETR_TREE,
+                Imgproc.CHAIN_APPROX_SIMPLE);
+        for (int i = 0; i < contours.size(); i++) {
+            // Imgproc.drawContours(processed, contours, i, new Scalar(0, 255, 0), 1);
+            final Rect r = Imgproc.boundingRect(contours.get(i));
+            if (r.height > 50 && r.height < mat.height() - 50
+                    && r.width > 50 && r.width < mat.width() - 50) {
+                final Point topLeft = new Point(r.x, r.y);
+                final Point bottomRight = new Point(r.x + r.width, r.y + r.height);
+                // Imgproc.rectangle(processed, topLeft, bottomRight, new Scalar(0, 255, 0), 8);
+            }
+        }
+
+        mat.release();
+        openCVProcessedMat = processed;
+        return processed;
+    }
+
     @Override
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
-        openCVMat = inputFrame.rgba();
-        return openCVMat;
+        final Mat mat = inputFrame.rgba();
+        processContour(mat);
+        return openCVProcessedMat;
     }
 
     @Override
     public void onCameraViewStarted(int width, int height) {
-        openCVMat = new Mat(width, height, CvType.CV_8UC4);
+        openCVProcessedMat = new Mat(width, height, CvType.CV_8UC4);
     }
 
     @Override
     public void onCameraViewStopped() {
-        if (openCVMat != null) {
-            openCVMat.release();
+        if (openCVProcessedMat != null) {
+            openCVProcessedMat.release();
         }
     }
 }
