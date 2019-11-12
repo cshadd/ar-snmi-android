@@ -39,7 +39,7 @@ import java.util.Collection;
 
 public class SurfaceProcessor
     implements JavaCameraView.CvCameraViewListener2 {
-    private static final boolean DEBUG_OPENCV_MODE = false;
+    private static final boolean DEBUG_OPENCV_MODE = true;
     private static final double MIN_OPENGL_VERSION = 3.0;
     private static final String TAG = "KAPLAN-PROCESSOR";
 
