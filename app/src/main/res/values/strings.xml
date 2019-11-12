@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">AR Surface Navigation for Mobility Impairments</string>
     <string name="action_exit">Exit</string>
-    <string name="dismiss">Dismiss</string>
-    <string name="error_prefix">io.github.cshadd Error: %1$s</string>
-    <string name="warning_prefix">io.github.cshadd Warning: %1$s</string>
+    <string name="error_prefix">ar_snfmi_android Error: %1$s</string>
+    <string name="warning_prefix">ar_snfmi_android Warning: %1$s</string>
+    <string name="title_activity_main2">Main2Activity</string>
 </resources>

@@ -7,33 +7,39 @@ import android.media.Image;
 import android.net.Uri;
 import android.os.Build;
 import android.util.Log;
-
+import android.view.ViewGroup;
 import com.google.ar.core.Anchor;
 import com.google.ar.core.AugmentedImage;
 import com.google.ar.core.Camera;
 import com.google.ar.core.Frame;
 import com.google.ar.core.Pose;
 import com.google.ar.core.Session;
+import com.google.ar.core.Trackable;
 import com.google.ar.core.TrackingState;
 import com.google.ar.core.exceptions.NotYetAvailableException;
 import com.google.ar.sceneform.AnchorNode;
 import com.google.ar.sceneform.ArSceneView;
 import com.google.ar.sceneform.Scene;
-import com.google.ar.sceneform.SceneView;
+import com.google.ar.sceneform.math.Quaternion;
+import com.google.ar.sceneform.math.Vector3;
 import com.google.ar.sceneform.rendering.ModelRenderable;
 import com.google.ar.sceneform.ux.TransformableNode;
+import com.google.ar.sceneform.ux.TransformationSystem;
 
 import org.opencv.android.BaseLoaderCallback;
+import org.opencv.android.CameraBridgeViewBase;
+import org.opencv.android.JavaCameraView;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.imgcodecs.Imgcodecs;
-
 import java.nio.ByteBuffer;
 import java.util.Collection;
 
-public class SurfaceProcessor {
+public class SurfaceProcessor
+    implements JavaCameraView.CvCameraViewListener2 {
+    private static final boolean DEBUG_OPENCV_MODE = false;
     private static final double MIN_OPENGL_VERSION = 3.0;
     private static final String TAG = "KAPLAN-PROCESSOR";
 
@@ -41,9 +47,12 @@ public class SurfaceProcessor {
     private CARFragmentWrapper arFragment;
     private Scene.OnUpdateListener arSceneOnUpdateListener;
     private Anchor cautionModelAnchor;
+    private AnchorNode cautionModelAnchorNode;
+    private TransformableNode cautionModelNode;
     private ModelRenderable cautionModelRenderable;
-    private boolean isCautionModelRendered;
+    private CJavaCameraViewWrapper javaCameraView;
     private BaseLoaderCallback openCVLoaderCallback;
+    private Mat openCVMat;
 
     SurfaceProcessor(CommonActivity activity) { this.activity = activity; }
 
@@ -84,22 +93,31 @@ public class SurfaceProcessor {
         handleOpenCVSupport();
     }
 
-    private void initializeOpenCVDependencies() {
-
-    }
-
     void onCreate() {
-        arFragment = (CARFragmentWrapper) activity.getSupportFragmentManager()
+        arFragment = (CARFragmentWrapper)activity.getSupportFragmentManager()
                 .findFragmentById(R.id.ar);
+        javaCameraView = activity.findViewById(R.id.java_cam);
 
-        isCautionModelRendered = false;
+        if (DEBUG_OPENCV_MODE) {
+            if (arFragment != null) {
+                activity.getSupportFragmentManager().beginTransaction().remove(arFragment).commit();
+                arFragment = null;
+            }
+        }
+        else {
+            if (javaCameraView != null) {
+                ((ViewGroup) javaCameraView.getParent()).removeView(javaCameraView);
+                javaCameraView = null;
+            }
+        }
 
         arSceneOnUpdateListener = frameTime -> {
             final ArSceneView arSceneView = arFragment.getArSceneView();
             final Scene scene = arSceneView.getScene();
             final Frame frame = arSceneView.getArFrame();
-            final Camera camera = frame.getCamera();
+            final TransformationSystem transformationSystem = arFragment.getTransformationSystem();
             if (frame != null) {
+                final Camera camera = frame.getCamera();
                 final Collection<AugmentedImage> augmentedImages = frame
                         .getUpdatedTrackables(AugmentedImage.class);
                 try {
@@ -111,30 +129,41 @@ public class SurfaceProcessor {
                     buf.put(0, 0, bytes);
 
                     final Mat mat = Imgcodecs.imdecode(buf, Imgcodecs.IMREAD_COLOR);
-                    Log.d(TAG, "Done processing image");
 
                     // OpenCV detection here
 
+                    Log.d(TAG, "Done processing image");
+
                     if (cautionModelRenderable != null) {
                         if (camera.getTrackingState() == TrackingState.TRACKING) {
-                            if (!isCautionModelRendered) {
-                                final Session session = arSceneView.getSession();
-                                // May need to detach anchor
-                                cautionModelAnchor = session.createAnchor(camera.getPose()
-                                        .compose(Pose.makeTranslation(0,0, 0))
-                                        .extractTranslation());
-                                final AnchorNode anchorNode = new AnchorNode(cautionModelAnchor);
-                                anchorNode.setParent(scene);
-                                // May need to move this
-                                final TransformableNode transformableNode = new TransformableNode(
-                                        arFragment.getTransformationSystem());
-                                transformableNode.setParent(anchorNode);
-                                transformableNode.setRenderable(cautionModelRenderable);
-                                isCautionModelRendered = true;
+                            final Session session = arSceneView.getSession();
+                            if (session != null) {
+                                if (cautionModelAnchor != null) {
+                                    cautionModelAnchor.detach();
+                                }
+                                // Translation must be changed here
+                                /*cautionModelAnchor = session.createAnchor(camera.getPose()
+                                        .compose(Pose.makeTranslation(1,0, 0))
+                                        .extractTranslation());*/
+                                cautionModelAnchor = session.createAnchor(new Pose(
+                                        new float[] {0, 0, -1},
+                                        new float[] {0, 0, 0, 0}
+                                ));
+
+                                cautionModelAnchorNode = new AnchorNode(cautionModelAnchor);
+                                cautionModelAnchorNode.setParent(scene);
+
+                                if (cautionModelNode != null) {
+                                    scene.removeChild(cautionModelNode);
+                                    cautionModelNode.setRenderable(null);
+                                }
+
+                                cautionModelNode = new TransformableNode(transformationSystem);
+                                cautionModelNode.setParent(cautionModelAnchorNode);
+                                cautionModelNode.setRenderable(cautionModelRenderable);
+                                cautionModelNode.setLocalRotation(Quaternion.axisAngle(
+                                        new Vector3(0f, 1f, 0), 180f));
                             }
-                        }
-                        else {
-                            activity.handleWarning(TAG, "Not tracking.");
                         }
                     }
                     else {
@@ -158,10 +187,13 @@ public class SurfaceProcessor {
             public void onManagerConnected(int status) {
                 if (status == openCVLoaderCallback.SUCCESS) {
                     Log.i(TAG, "OpenCV loaded!");
-                    initializeOpenCVDependencies();
+                    if (javaCameraView != null) {
+                        javaCameraView.enableView();
+                    }
+                    // OpenCV Dependencies here
                 }
                  else {
-                    Log.w(TAG, "OpenCV failed to load with status: "
+                    activity.handleWarning(TAG, "OpenCV failed to load with status: "
                             + status);
                     super.onManagerConnected(status);
                 }
@@ -174,9 +206,13 @@ public class SurfaceProcessor {
                     .build()
                     .thenAccept(renderable -> cautionModelRenderable = renderable)
                     .exceptionally(throwable -> {
-                        activity.handleError(TAG, throwable);
+                        activity.handleWarning(TAG, throwable);
                         return null;
                     });
+        }
+
+        if (javaCameraView != null) {
+            javaCameraView.setCvCameraViewListener(this);
         }
     }
 
@@ -185,12 +221,18 @@ public class SurfaceProcessor {
             arFragment.onDestroy();
             arFragment.getArSceneView().getScene().removeOnUpdateListener(arSceneOnUpdateListener);
         }
+        if (javaCameraView != null) {
+            javaCameraView.disableView();
+        }
     }
 
     void onPause() {
         if (arFragment != null) {
             arFragment.onPause();
             arFragment.getArSceneView().getScene().removeOnUpdateListener(arSceneOnUpdateListener);
+        }
+        if (javaCameraView != null) {
+            javaCameraView.disableView();
         }
     }
 
@@ -206,6 +248,27 @@ public class SurfaceProcessor {
         if (arFragment != null) {
             arFragment.onStop();
             arFragment.getArSceneView().getScene().removeOnUpdateListener(arSceneOnUpdateListener);
+        }
+        if (javaCameraView != null) {
+            javaCameraView.disableView();
+        }
+    }
+
+    @Override
+    public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
+        openCVMat = inputFrame.rgba();
+        return openCVMat;
+    }
+
+    @Override
+    public void onCameraViewStarted(int width, int height) {
+        openCVMat = new Mat(width, height, CvType.CV_8UC4);
+    }
+
+    @Override
+    public void onCameraViewStopped() {
+        if (openCVMat != null) {
+            openCVMat.release();
         }
     }
 }
