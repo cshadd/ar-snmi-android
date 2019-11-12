@@ -61,6 +61,24 @@ public class SurfaceProcessor
 
     SurfaceProcessor(CommonActivity activity) { this.activity = activity; }
 
+    private static class ContourData {
+        private Point bottomRight;
+        private Point topLeft;
+
+        ContourData(Point bottomRight, Point topLeft) {
+            this.bottomRight = bottomRight;
+            this.topLeft = topLeft;
+        }
+
+        Point getBottomRight() {
+            return bottomRight;
+        }
+
+        Point getTopLeft() {
+            return topLeft;
+        }
+    }
+
     @SuppressLint("ObsoleteSdkInt")
     private void handleARSupport() {
         final ActivityManager activityManager = (ActivityManager)activity
@@ -254,12 +272,16 @@ public class SurfaceProcessor
             arFragment.onStop();
             arFragment.getArSceneView().getScene().removeOnUpdateListener(arSceneOnUpdateListener);
         }
+        if (openCVProcessedMat != null) {
+            openCVProcessedMat.release();
+        }
         if (javaCameraView != null) {
             javaCameraView.disableView();
         }
     }
 
-    private Mat processContour(Mat mat) {
+    private List<ContourData> processContour(Mat mat) {
+        final List<ContourData> data = new ArrayList<>();
         final List<MatOfPoint> contours = new ArrayList<>();
         final Mat processed = new Mat();
         mat.copyTo(processed);
@@ -267,19 +289,24 @@ public class SurfaceProcessor
         Imgproc.findContours(mat, contours, new Mat(), Imgproc.RETR_TREE,
                 Imgproc.CHAIN_APPROX_SIMPLE);
         for (int i = 0; i < contours.size(); i++) {
-            // Imgproc.drawContours(processed, contours, i, new Scalar(0, 255, 0), 1);
+            if (DEBUG_OPENCV_MODE) {
+                Imgproc.drawContours(processed, contours, i, new Scalar(0, 255, 0), 1);
+            }
             final Rect r = Imgproc.boundingRect(contours.get(i));
             if (r.height > 50 && r.height < mat.height() - 50
                     && r.width > 50 && r.width < mat.width() - 50) {
-                final Point topLeft = new Point(r.x, r.y);
                 final Point bottomRight = new Point(r.x + r.width, r.y + r.height);
-                // Imgproc.rectangle(processed, topLeft, bottomRight, new Scalar(0, 255, 0), 8);
+                final Point topLeft = new Point(r.x, r.y);
+                data.add(new ContourData(bottomRight, topLeft));
+                if (DEBUG_OPENCV_MODE) {
+                    Imgproc.rectangle(processed, topLeft, bottomRight, new Scalar(0, 255, 0), 8);
+                }
             }
         }
 
         mat.release();
         openCVProcessedMat = processed;
-        return processed;
+        return data;
     }
 
     @Override
