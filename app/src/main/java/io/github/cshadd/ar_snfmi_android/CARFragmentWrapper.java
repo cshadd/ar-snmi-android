@@ -1,6 +1,11 @@
 package io.github.cshadd.ar_snfmi_android;
 
 import android.Manifest;
+import android.graphics.Bitmap;
+import android.graphics.ImageFormat;
+import android.graphics.Rect;
+import android.graphics.YuvImage;
+import android.media.Image;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -17,7 +22,10 @@ public class CARFragmentWrapper
     @Override
     public String[] getAdditionalPermissions() {
         super.getAdditionalPermissions();
-        return new String[]{ Manifest.permission.WRITE_EXTERNAL_STORAGE };
+        return new String[]{
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+        };
     }
 
     @Override

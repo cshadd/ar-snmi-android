@@ -8,16 +8,16 @@
     tools:context=".MainActivity"
     tools:showIn="@layout/activity_main">
 
-    <io.github.cshadd.ar_snfmi_android.CJavaCameraViewWrapper
+    <!-- <io.github.cshadd.ar_snfmi_android.CJavaCameraViewWrapper
         android:id="@+id/java_cam"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        app:show_fps="true" />
+        app:show_fps="true" /> -->
 
-    <!--<fragment
+    <fragment
         android:id="@+id/ar"
         android:name="io.github.cshadd.ar_snfmi_android.CARFragmentWrapper"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />-->
+        android:layout_height="match_parent" />
 
 </FrameLayout>
