@@ -2,6 +2,7 @@ package io.github.cshadd.ar_snfmi_android;
 
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 import android.view.WindowManager;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
@@ -23,9 +24,12 @@ public class MainActivity
 
 
         final FloatingActionButton fab = findViewById(R.id.fab);
-        fab.setOnClickListener(view -> processor.saveDataNow = true);
+        fab.setOnClickListener(v -> {
+            processor.saveDataNow = true;
+            handleInfo(TAG, "Saved data.");
+        });
 
-        Log.i(TAG, "I love navigation!");
+        Log.d(TAG, "I love navigation!");
     }
 
     @Override

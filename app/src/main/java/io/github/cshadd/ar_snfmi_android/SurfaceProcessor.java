@@ -4,10 +4,21 @@ import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.ActivityManager;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+import android.location.Address;
+import android.location.Geocoder;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.media.Image;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
 import androidx.fragment.app.FragmentManager;
@@ -34,8 +45,6 @@ import com.karumi.dexter.PermissionToken;
 import com.karumi.dexter.listener.PermissionRequest;
 import com.karumi.dexter.listener.multi.MultiplePermissionsListener;
 import org.opencv.android.BaseLoaderCallback;
-import org.opencv.android.CameraBridgeViewBase;
-import org.opencv.android.JavaCameraView;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
@@ -52,10 +61,12 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.List;
 
 public class SurfaceProcessor
-    implements CJavaCameraViewWrapper.CvCameraViewListener2 {
+        implements CJavaCameraViewWrapper.CvCameraViewListener2, LocationListener,
+        SensorEventListener {
     private static final double MIN_OPENGL_VERSION = 3.0;
     private static final String TAG = "KAPLAN-PROCESSOR";
 
@@ -67,13 +78,22 @@ public class SurfaceProcessor
     private TransformableNode cautionModelNode;
     private ModelRenderable cautionModelRenderable;
     private List<ContourData> contourData;
+    private boolean isLocationAllowed;
     private CJavaCameraViewWrapper javaCameraView;
+    private Sensor lightSensor;
+    private Location location;
+    private LocationManager locationManager;
+    private float lux;
     private BaseLoaderCallback openCVLoaderCallback;
     private Mat openCVProcessedMat;
     private SaveData saveData;
+    private SensorManager sensorManager;
+
     boolean saveDataNow;
 
-    SurfaceProcessor(CommonActivity activity) { this.activity = activity; }
+    SurfaceProcessor(CommonActivity activity) {
+        this.activity = activity;
+    }
 
     private static class ContourData {
         private Point bottomRight;
@@ -95,7 +115,7 @@ public class SurfaceProcessor
 
     @SuppressLint("ObsoleteSdkInt")
     private void handleARSupport() {
-        final ActivityManager activityManager = (ActivityManager)activity
+        final ActivityManager activityManager = (ActivityManager) activity
                 .getSystemService(Context.ACTIVITY_SERVICE);
         String openGlVersionString = "0.0";
         if (activityManager != null) {
@@ -105,21 +125,18 @@ public class SurfaceProcessor
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
             activity.handleError(TAG, "Unable to load ARCore. " +
                     "Sceneform requires Android N or later.");
-        }
-        else if (Double.parseDouble(openGlVersionString) < MIN_OPENGL_VERSION) {
+        } else if (Double.parseDouble(openGlVersionString) < MIN_OPENGL_VERSION) {
             activity.handleError(TAG, "Unable to load ARCore. " +
                     "Sceneform requires OpenGL ES 3.0 later.");
-        }
-        else {
-            Log.i(TAG, "AR loaded!");
+        } else {
+            Log.d(TAG, "AR loaded!");
         }
     }
 
     private void handleOpenCVSupport() {
         if (OpenCVLoader.initDebug()) {
             openCVLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
-        }
-        else {
+        } else {
             activity.handleError(TAG, "Unable to load OpenCV. " +
                     "Library initialization error.");
         }
@@ -131,18 +148,24 @@ public class SurfaceProcessor
     }
 
     void onCreate() {
+        final FragmentManager fragmentManager = activity.getSupportFragmentManager();
+
+        location = null;
         saveData = new SaveData(activity);
         saveDataNow = false;
 
-        final FragmentManager fragmentManager = activity.getSupportFragmentManager();
         // arFragment = (CARFragmentWrapper)fragmentManager.findFragmentById(R.id.ar);
         javaCameraView = activity.findViewById(R.id.java_cam);
+        sensorManager = (SensorManager)activity.getSystemService(Context.SENSOR_SERVICE);
 
         if (javaCameraView != null) {
             Log.d(TAG, "OpenCV debug mode.");
             Dexter.withActivity(activity)
                     .withPermissions(
+                            Manifest.permission.ACCESS_COARSE_LOCATION,
+                            Manifest.permission.ACCESS_FINE_LOCATION,
                             Manifest.permission.CAMERA,
+                            Manifest.permission.INTERNET,
                             Manifest.permission.READ_EXTERNAL_STORAGE,
                             Manifest.permission.WRITE_EXTERNAL_STORAGE)
                     .withListener(new MultiplePermissionsListener() {
@@ -151,16 +174,16 @@ public class SurfaceProcessor
                         @Override
                         public void onPermissionsChecked(MultiplePermissionsReport report) {
                             if (report.areAllPermissionsGranted()) {
-                                Log.i(TAG, "Needed permissions were granted!");
-                            }
-                            else {
+                                Log.d(TAG, "Needed permissions were granted!");
+                            } else {
                                 activity.handleWarning(TAG, "Needed permissions were not granted!");
                             }
                         }
 
                         @Override
                         public void onPermissionRationaleShouldBeShown(
-                                List<PermissionRequest> permissions, PermissionToken token) { }
+                                List<PermissionRequest> permissions, PermissionToken token) {
+                        }
                     }).check();
         }
 
@@ -184,7 +207,8 @@ public class SurfaceProcessor
                     contourData = openCVProcessContour(greyMat, mat);
                     greyMat.release();
                     if (saveDataNow) {
-                        saveImage(mat);
+                        openCVProcessedMat = mat;
+                        saveData();
                         saveDataNow = false;
                     }
                     mat.release();
@@ -198,6 +222,7 @@ public class SurfaceProcessor
                                 config = session.getConfig();
                                 config.setFocusMode(Config.FocusMode.AUTO);
                                 session.configure(config);
+
                                 if (cautionModelAnchor != null) {
                                     cautionModelAnchor.detach();
                                 }
@@ -206,8 +231,8 @@ public class SurfaceProcessor
                                         .compose(Pose.makeTranslation(1,0, 0))
                                         .extractTranslation());*/
                                 cautionModelAnchor = session.createAnchor(new Pose(
-                                        new float[] {0, 0, -1},
-                                        new float[] {0, 0, 0, 0}
+                                        new float[]{0, 0, -1},
+                                        new float[]{0, 0, 0, 0}
                                 ));
 
                                 cautionModelAnchorNode = new AnchorNode(cautionModelAnchor);
@@ -225,13 +250,11 @@ public class SurfaceProcessor
                                 // Also put here if nodes were shown...
                             }
                         }
-                    }
-                    else {
+                    } else {
                         activity.handleWarning(TAG, "Renderable not loaded.");
                     }
                     Log.d(TAG, "AR scene processed.");
-                }
-                catch (NotYetAvailableException e) {
+                } catch (NotYetAvailableException e) {
                     activity.handleWarning(TAG, e);
                 }
             }
@@ -241,12 +264,11 @@ public class SurfaceProcessor
             @Override
             public void onManagerConnected(int status) {
                 if (status == openCVLoaderCallback.SUCCESS) {
-                    Log.i(TAG, "OpenCV loaded!");
+                    Log.d(TAG, "OpenCV loaded!");
                     if (javaCameraView != null) {
                         javaCameraView.enableView();
                     }
-                }
-                 else {
+                } else {
                     activity.handleError(TAG, "OpenCV failed to load with status: "
                             + status);
                     super.onManagerConnected(status);
@@ -268,6 +290,14 @@ public class SurfaceProcessor
         if (javaCameraView != null) {
             javaCameraView.setCvCameraViewListener(this);
         }
+
+        final List<Sensor> lightSensors = sensorManager.getSensorList(Sensor.TYPE_LIGHT);
+        if (lightSensors.size() > 0) {
+            lightSensor = lightSensors.get(0);
+        }
+
+        locationManager = (LocationManager) activity.getSystemService(
+                Context.LOCATION_SERVICE);
     }
 
     void onDestroy() {
@@ -277,6 +307,12 @@ public class SurfaceProcessor
         }
         if (javaCameraView != null) {
             javaCameraView.disableView();
+        }
+        if (sensorManager != null && lightSensor != null) {
+            sensorManager.unregisterListener(this, lightSensor);
+        }
+        if (locationManager != null) {
+            locationManager.removeUpdates(this);
         }
     }
 
@@ -288,6 +324,12 @@ public class SurfaceProcessor
         if (javaCameraView != null) {
             javaCameraView.disableView();
         }
+        if (sensorManager != null && lightSensor != null) {
+            sensorManager.unregisterListener(this, lightSensor);
+        }
+        if (locationManager != null) {
+            locationManager.removeUpdates(this);
+        }
     }
 
     void onResume() {
@@ -295,6 +337,23 @@ public class SurfaceProcessor
         if (arFragment != null) {
             arFragment.onResume();
             arFragment.getArSceneView().getScene().addOnUpdateListener(arSceneOnUpdateListener);
+        }
+        if (sensorManager != null && lightSensor != null) {
+            sensorManager.registerListener(this, lightSensor, SensorManager.SENSOR_DELAY_NORMAL);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (locationManager != null) {
+                if (activity.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+                        == PackageManager.PERMISSION_GRANTED &&
+                        activity.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
+                                == PackageManager.PERMISSION_GRANTED) {
+                    locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0,
+                            this);
+                    locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0,
+                            this);
+                }
+
+            }
         }
     }
 
@@ -305,6 +364,12 @@ public class SurfaceProcessor
         }
         if (javaCameraView != null) {
             javaCameraView.disableView();
+        }
+        if (sensorManager != null && lightSensor != null) {
+            sensorManager.unregisterListener(this, lightSensor);
+        }
+        if (locationManager != null) {
+            locationManager.removeUpdates(this);
         }
     }
 
@@ -398,27 +463,84 @@ public class SurfaceProcessor
         return data;
     }
 
-    private void saveImage(Mat mat) {
+    private void saveData() {
         if (saveData.isExternalStorageUseable()) {
-            final File directory = saveData.getExternalStorageDirectory(
-                    Environment.DIRECTORY_PICTURES,"test");
-            if (directory != null) {
-                try {
-                    final Bitmap bmp = Bitmap.createBitmap(mat.cols(), mat.rows(),
-                            Bitmap.Config.ARGB_8888);
-                    Utils.matToBitmap(mat, bmp);
-                    if (arFragment != null) {
-                        saveData.saveBitmap(bmp, "test_ar",
-                                directory);
+            final File csvDirectory = saveData.getExternalStorageDirectory(
+                    Environment.DIRECTORY_DOCUMENTS,"test_csv");
+
+            final long currentTimeMillis = System.currentTimeMillis();
+            final Date date = new java.util.Date(currentTimeMillis);
+            String address = "DEFINE";
+            String gps = "DEFINE";
+            if (location != null) {
+
+                final Geocoder gc = new Geocoder(activity);
+                if(Geocoder.isPresent()){
+                    try {
+                        final List<Address> addressList = gc.getFromLocation(location.getLatitude(),
+                                location.getLongitude(), 1);
+                        if (addressList.size() > 0) {
+                            address = addressList.get(0).getAddressLine(0);
+                        }
                     }
-                    else {
-                        saveData.saveBitmap(bmp, "test_opencv",
-                                directory);
+                    catch (IOException e) {
+                        activity.handleWarning(TAG, e);
                     }
                 }
-                catch (IOException e) {
-                    activity.handleWarning(TAG, e);
-                }
+                gps = "Lat: " + location.getLatitude() + "; Long:" + location.getLongitude() + ";"
+                        + "Alt: " + location.getAltitude();
+            }
+
+
+            final File csvFile = new File(csvDirectory, "test.csv");
+            if (!csvFile.exists()) {
+                saveData.saveCSV(new String[] {
+                                "Timestamp (UTC)",
+                                "Timestamp 2 (UTC)",
+                                "Location GPS",
+                                "Location Address",
+                                "Lighting (Lux)",
+                                "Weather",
+                                "Surface Type",
+                                "OpenCV Valid Contours",
+                                "OpenCV Total Contours",
+                                "AR Core Valid Caution Objects",
+                                "AR Core Total Caution Objects Generated",
+                        },
+                        "test.csv", csvDirectory);
+            }
+
+            saveData.saveCSV(new String[] {
+                            currentTimeMillis + "",
+                            date + "",
+                            gps,
+                            address,
+                            lux + "",
+                            "DEFINE",
+                            "DEFINE",
+                            "DEFINE",
+                            contourData.size() + "",
+                            "DEFINE",
+                            "DEFINE"
+                    },
+                    "test.csv", csvDirectory);
+
+            final File pictureDirectory = saveData.getExternalStorageDirectory(
+                    Environment.DIRECTORY_PICTURES,"test_pics");
+
+            final Bitmap bmp = Bitmap.createBitmap(openCVProcessedMat.cols(),
+                    openCVProcessedMat.rows(),
+                    Bitmap.Config.ARGB_8888);
+            Utils.matToBitmap(openCVProcessedMat, bmp);
+            if (arFragment != null) {
+                saveData.saveBitmap(bmp, "test_ar_" + System.currentTimeMillis()
+                        + ".png", pictureDirectory);
+                Log.d(TAG, "test");
+            }
+            else {
+                saveData.saveBitmap(bmp, "test_opencv_" + System.currentTimeMillis()
+                        + ".png", pictureDirectory);
+                Log.d(TAG, "test");
             }
         }
     }
@@ -432,10 +554,10 @@ public class SurfaceProcessor
         final Mat greyMat = new Mat();
         openCVProcessedMat.copyTo(greyMat);
         Imgproc.cvtColor(greyMat, greyMat, Imgproc.COLOR_BGR2GRAY);
-        openCVProcessContour(greyMat, openCVProcessedMat);
+        contourData = openCVProcessContour(greyMat, openCVProcessedMat);
         greyMat.release();
         if (saveDataNow) {
-            saveImage(openCVProcessedMat);
+            saveData();
             saveDataNow = false;
         }
         return openCVProcessedMat;
@@ -452,4 +574,26 @@ public class SurfaceProcessor
             openCVProcessedMat.release();
         }
     }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) { }
+
+    @Override
+    public void onLocationChanged(Location location) { this.location = location; }
+
+    @Override
+    public void onProviderDisabled(String provider) { }
+
+    @Override
+    public void onProviderEnabled(String provider) { }
+
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        if (event.sensor.getType() == Sensor.TYPE_LIGHT) {
+            lux = event.values[0];
+        }
+    }
+
+    @Override
+    public void onStatusChanged(String provider, int status, Bundle extras) { }
 }

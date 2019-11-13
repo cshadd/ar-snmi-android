@@ -1,6 +1,5 @@
 package io.github.cshadd.ar_snfmi_android;
 
-import android.content.res.Resources;
 import android.util.Log;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
@@ -17,11 +16,16 @@ public abstract class CommonActivity
     }
 
     public void handleError(String TAG, String error) {
-        final Resources res = getResources();
-        final String message = res.getString(R.string.warning_prefix, error);
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
-        Log.e(TAG, message);
+        runOnUiThread(() -> Toast.makeText(CommonActivity.this, TAG + ": " + error,
+                Toast.LENGTH_LONG).show());
+        Log.e(TAG, error);
         finish();
+    }
+
+    public void handleInfo(String TAG, String info) {
+        runOnUiThread(() -> Toast.makeText(CommonActivity.this, TAG + ": " + info,
+                Toast.LENGTH_LONG).show());
+        Log.i(TAG, info);
     }
 
     public void handleWarning(String TAG, Throwable e) {
@@ -34,9 +38,8 @@ public abstract class CommonActivity
     }
 
     public void handleWarning(String TAG, String warning) {
-        final Resources res = getResources();
-        final String message = res.getString(R.string.warning_prefix, warning);
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
-        Log.w(TAG, message);
+        runOnUiThread(() -> Toast.makeText(CommonActivity.this, TAG + ": " + warning,
+                Toast.LENGTH_LONG).show());
+        Log.w(TAG, warning);
     }
 }
