@@ -44,6 +44,7 @@ import org.opencv.android.JavaCameraView;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
+import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
@@ -76,7 +77,7 @@ public class SurfaceProcessor
     private BaseLoaderCallback openCVLoaderCallback;
     private Mat openCVProcessedMat;
     private SaveData saveData;
-    public boolean saveImageNow;
+    boolean saveImageNow;
 
     SurfaceProcessor(CommonActivity activity) { this.activity = activity; }
 
@@ -200,7 +201,7 @@ public class SurfaceProcessor
                     yuvImage.compressToJpeg(new android.graphics.Rect(0, 0,
                                     image.getWidth(),
                                     image.getHeight()),
-                            75, baOutputStream);
+                            100, baOutputStream);
                     final byte[] byteForBitmap = baOutputStream.toByteArray();
                     final Bitmap bitmap = BitmapFactory.decodeByteArray(byteForBitmap, 0,
                             byteForBitmap.length);
@@ -209,7 +210,8 @@ public class SurfaceProcessor
                     final Bitmap bitmapCopy = bitmap.copy(Bitmap.Config.ARGB_8888,true);
                     Utils.bitmapToMat(bitmapCopy, mat);
                     Imgproc.cvtColor(mat, mat, Imgproc.COLOR_BGR2RGB);
-                    openCVProcessContour(mat);
+                    Core.flip(mat.t(), mat, 1);
+                    openCVProcessContour(mat, Imgproc.COLOR_RGB2GRAY);
                     Log.d(TAG, "Contours: " + contourData.size());
                     mat.release();
                     image.close();
@@ -217,33 +219,35 @@ public class SurfaceProcessor
                     if (cautionModelRenderable != null) {
                         if (camera.getTrackingState() == TrackingState.TRACKING) {
                             final Session session = arSceneView.getSession();
-                            final Config config = session.getConfig();
-                            config.setFocusMode(Config.FocusMode.AUTO);
-                            session.configure(config);
-                            if (cautionModelAnchor != null) {
-                                cautionModelAnchor.detach();
-                            }
-                            // Translation must be changed here
+                            final Config config;
+                            if (session != null) {
+                                config = session.getConfig();
+                                config.setFocusMode(Config.FocusMode.AUTO);
+                                session.configure(config);
+                                if (cautionModelAnchor != null) {
+                                    cautionModelAnchor.detach();
+                                }
+                                // Translation must be changed here
                                 /*cautionModelAnchor = session.createAnchor(camera.getPose()
                                         .compose(Pose.makeTranslation(1,0, 0))
                                         .extractTranslation());*/
-                            cautionModelAnchor = session.createAnchor(new Pose(
-                                    new float[] {0, 0, -1},
-                                    new float[] {0, 0, 0, 0}
-                            ));
+                                cautionModelAnchor = session.createAnchor(new Pose(
+                                        new float[] {0, 0, -1},
+                                        new float[] {0, 0, 0, 0}
+                                ));
 
-                            cautionModelAnchorNode = new AnchorNode(cautionModelAnchor);
-                            cautionModelAnchorNode.setParent(scene);
-                            if (cautionModelNode != null) {
-                                scene.removeChild(cautionModelNode);
-                                cautionModelNode.setRenderable(null);
+                                cautionModelAnchorNode = new AnchorNode(cautionModelAnchor);
+                                cautionModelAnchorNode.setParent(scene);
+                                if (cautionModelNode != null) {
+                                    scene.removeChild(cautionModelNode);
+                                    cautionModelNode.setRenderable(null);
+                                }
+                                cautionModelNode = new TransformableNode(transformationSystem);
+                                cautionModelNode.setParent(cautionModelAnchorNode);
+                                cautionModelNode.setRenderable(cautionModelRenderable);
+                                cautionModelNode.setLocalRotation(Quaternion.axisAngle(
+                                        new Vector3(0f, 1f, 0), 180f));
                             }
-                            cautionModelNode = new TransformableNode(transformationSystem);
-                            cautionModelNode.setParent(cautionModelAnchorNode);
-                            cautionModelNode.setRenderable(cautionModelRenderable);
-                            cautionModelNode.setLocalRotation(Quaternion.axisAngle(
-                                    new Vector3(0f, 1f, 0), 180f));
-
                         }
                     }
                     else {
@@ -328,27 +332,26 @@ public class SurfaceProcessor
         }
     }
 
-    private void openCVProcessContour(Mat mat) {
+    private void openCVProcessContour(Mat mat, int colorConvert) {
         final Mat processed = new Mat();
         mat.copyTo(processed);
-        Imgproc.cvtColor(mat, mat, Imgproc.COLOR_BGR2GRAY);
+        Imgproc.cvtColor(mat, mat, colorConvert);
         final List<MatOfPoint> contours = new ArrayList<>();
         Imgproc.findContours(mat, contours, new Mat(), Imgproc.RETR_TREE,
                 Imgproc.CHAIN_APPROX_SIMPLE);
         for (int i = 0; i < contours.size(); i++) {
             if (javaCameraView != null) {
-                // Imgproc.drawContours(processed, contours, i, new Scalar(0, 255, 0), 1);
+                Imgproc.drawContours(processed, contours, i, new Scalar(0, 255, 0), 1);
             }
             final Rect r = Imgproc.boundingRect(contours.get(i));
-            if (r.height > 50 && r.height < mat.height() - 50
-                    && r.width > 50 && r.width < mat.width() - 50) {
+            //if (r.height < mat.height() - 50 && r.width < mat.width() - 50) {
                 final Point bottomRight = new Point(r.x + r.width, r.y + r.height);
                 final Point topLeft = new Point(r.x, r.y);
                 contourData.add(new ContourData(bottomRight, topLeft));
                 // if (javaCameraView != null) {
                     Imgproc.rectangle(processed, topLeft, bottomRight, new Scalar(0, 255, 0), 8);
                 // }
-            }
+            //}
         }
         mat.release();
         openCVProcessedMat = processed;
@@ -362,8 +365,14 @@ public class SurfaceProcessor
                         final Bitmap bmp = Bitmap.createBitmap(processed.cols(), processed.rows(),
                                 Bitmap.Config.ARGB_8888);
                         Utils.matToBitmap(processed, bmp);
-                        saveData.saveBitmap(bmp, "test",
-                                directory);
+                        if (arFragment != null) {
+                            saveData.saveBitmap(bmp, "test_ar",
+                                    directory);
+                        }
+                        else {
+                            saveData.saveBitmap(bmp, "test_opencv",
+                                    directory);
+                        }
                     }
                     catch (IOException e) {
                         activity.handleWarning(TAG, e);
@@ -381,7 +390,7 @@ public class SurfaceProcessor
             openCVProcessedMat.release();
         }
         final Mat mat = inputFrame.rgba();
-        openCVProcessContour(mat);
+        openCVProcessContour(mat, Imgproc.COLOR_BGR2GRAY);
         return openCVProcessedMat;
     }
 
