@@ -13,6 +13,9 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.util.Log;
+
+import androidx.fragment.app.FragmentManager;
+
 import com.google.ar.core.Anchor;
 import com.google.ar.core.AugmentedImage;
 import com.google.ar.core.Camera;
@@ -136,8 +139,8 @@ public class SurfaceProcessor
         saveData = new SaveData(activity);
         saveImageNow = false;
 
-        arFragment = (CARFragmentWrapper)activity.getSupportFragmentManager().findFragmentById(R.id.ar);
-
+        final FragmentManager fragmentManager = activity.getSupportFragmentManager();
+        arFragment = (CARFragmentWrapper)fragmentManager.findFragmentById(R.id.ar);
         // javaCameraView = activity.findViewById(R.id.java_cam);
 
         if (javaCameraView != null) {
