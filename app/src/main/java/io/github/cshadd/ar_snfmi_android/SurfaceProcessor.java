@@ -5,17 +5,12 @@ import android.annotation.SuppressLint;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.ImageFormat;
-import android.graphics.YuvImage;
 import android.media.Image;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.util.Log;
-
 import androidx.fragment.app.FragmentManager;
-
 import com.google.ar.core.Anchor;
 import com.google.ar.core.AugmentedImage;
 import com.google.ar.core.Camera;
@@ -52,7 +47,6 @@ import org.opencv.core.Point;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.imgproc.Imgproc;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -72,12 +66,12 @@ public class SurfaceProcessor
     private AnchorNode cautionModelAnchorNode;
     private TransformableNode cautionModelNode;
     private ModelRenderable cautionModelRenderable;
-    private List<ContourData> contourData = new ArrayList<>();
+    private List<ContourData> contourData;
     private CJavaCameraViewWrapper javaCameraView;
     private BaseLoaderCallback openCVLoaderCallback;
     private Mat openCVProcessedMat;
     private SaveData saveData;
-    boolean saveImageNow;
+    boolean saveDataNow;
 
     SurfaceProcessor(CommonActivity activity) { this.activity = activity; }
 
@@ -138,7 +132,7 @@ public class SurfaceProcessor
 
     void onCreate() {
         saveData = new SaveData(activity);
-        saveImageNow = false;
+        saveDataNow = false;
 
         final FragmentManager fragmentManager = activity.getSupportFragmentManager();
         arFragment = (CARFragmentWrapper)fragmentManager.findFragmentById(R.id.ar);
@@ -181,38 +175,18 @@ public class SurfaceProcessor
                         .getUpdatedTrackables(AugmentedImage.class);
                 try {
                     final Image image = frame.acquireCameraImage();
-                    final Image.Plane[] planes = image.getPlanes();
-                    final ByteBuffer cameraPlaneY = planes[0].getBuffer();
-                    final ByteBuffer cameraPlaneU = planes[1].getBuffer();
-                    final ByteBuffer cameraPlaneV = planes[2].getBuffer();
-                    final byte[] compositeByteArray = new byte[cameraPlaneY.capacity()
-                            + cameraPlaneU.capacity()
-                            + cameraPlaneV.capacity()];
-
-                    cameraPlaneY.get(compositeByteArray, 0, cameraPlaneY.capacity());
-                    cameraPlaneU.get(compositeByteArray, cameraPlaneY.capacity(),
-                            cameraPlaneU.capacity());
-                    cameraPlaneV.get(compositeByteArray, cameraPlaneY.capacity()
-                            + cameraPlaneU.capacity(), cameraPlaneV.capacity());
-
-                    final ByteArrayOutputStream baOutputStream = new ByteArrayOutputStream();
-                    final YuvImage yuvImage = new YuvImage(compositeByteArray, ImageFormat.NV21,
-                            image.getWidth(), image.getHeight(),null);
-                    yuvImage.compressToJpeg(new android.graphics.Rect(0, 0,
-                                    image.getWidth(),
-                                    image.getHeight()),
-                            100, baOutputStream);
-                    final byte[] byteForBitmap = baOutputStream.toByteArray();
-                    final Bitmap bitmap = BitmapFactory.decodeByteArray(byteForBitmap, 0,
-                            byteForBitmap.length);
-                    baOutputStream.close();
-                    final Mat mat = new Mat();
-                    final Bitmap bitmapCopy = bitmap.copy(Bitmap.Config.ARGB_8888,true);
-                    Utils.bitmapToMat(bitmapCopy, mat);
-                    Imgproc.cvtColor(mat, mat, Imgproc.COLOR_BGR2RGB);
+                    final Mat mat = openCVConvertYuv420888ToMat(image, false);
                     Core.flip(mat.t(), mat, 1);
-                    openCVProcessContour(mat, Imgproc.COLOR_RGB2GRAY);
-                    Log.d(TAG, "Contours: " + contourData.size());
+                    // Imgproc.resize(mat, mat, new Size(arSceneView.getWidth(), arSceneView.getHeight()));
+                    final Mat greyMat = new Mat();
+                    mat.copyTo(greyMat);
+                    Imgproc.cvtColor(greyMat, greyMat, Imgproc.COLOR_RGB2GRAY);
+                    contourData = openCVProcessContour(greyMat, mat);
+                    greyMat.release();
+                    if (saveDataNow) {
+                        saveImage(mat);
+                        saveDataNow = false;
+                    }
                     mat.release();
                     image.close();
 
@@ -247,6 +221,8 @@ public class SurfaceProcessor
                                 cautionModelNode.setRenderable(cautionModelRenderable);
                                 cautionModelNode.setLocalRotation(Quaternion.axisAngle(
                                         new Vector3(0f, 1f, 0), 180f));
+
+                                // Also put here if nodes were shown...
                             }
                         }
                     }
@@ -255,7 +231,7 @@ public class SurfaceProcessor
                     }
                     Log.d(TAG, "AR scene processed.");
                 }
-                catch (NotYetAvailableException | IOException e) {
+                catch (NotYetAvailableException e) {
                     activity.handleWarning(TAG, e);
                 }
             }
@@ -271,7 +247,7 @@ public class SurfaceProcessor
                     }
                 }
                  else {
-                    activity.handleWarning(TAG, "OpenCV failed to load with status: "
+                    activity.handleError(TAG, "OpenCV failed to load with status: "
                             + status);
                     super.onManagerConnected(status);
                 }
@@ -332,56 +308,119 @@ public class SurfaceProcessor
         }
     }
 
-    private void openCVProcessContour(Mat mat, int colorConvert) {
-        final Mat processed = new Mat();
-        mat.copyTo(processed);
-        Imgproc.cvtColor(mat, mat, colorConvert);
+    private Mat openCVConvertYuv420888ToMat(Image image, boolean isGreyOnly) {
+        final int width = image.getWidth();
+        final int height = image.getHeight();
+
+        final Image.Plane yPlane = image.getPlanes()[0];
+        final int ySize = yPlane.getBuffer().remaining();
+
+        if (isGreyOnly) {
+            final byte[] data = new byte[ySize];
+            yPlane.getBuffer().get(data, 0, ySize);
+
+            final Mat greyMat = new Mat(height, width, CvType.CV_8UC1);
+            greyMat.put(0, 0, data);
+
+            return greyMat;
+        }
+
+        final Image.Plane uPlane = image.getPlanes()[1];
+        final Image.Plane vPlane = image.getPlanes()[2];
+
+        // Be aware that this size does not include the padding at the end, if there is any
+        // (e.g. if pixel stride is 2 the size is ySize / 2 - 1).
+        final int uSize = uPlane.getBuffer().remaining();
+        final int vSize = vPlane.getBuffer().remaining();
+
+        final byte[] data = new byte[ySize + (ySize/2)];
+
+        yPlane.getBuffer().get(data, 0, ySize);
+
+        final ByteBuffer ub = uPlane.getBuffer();
+        final ByteBuffer vb = vPlane.getBuffer();
+
+        // Stride guaranteed to be the same for u and v planes
+        final int uvPixelStride = uPlane.getPixelStride();
+        if (uvPixelStride == 1) {
+            uPlane.getBuffer().get(data, ySize, uSize);
+            vPlane.getBuffer().get(data, ySize + uSize, vSize);
+
+            final Mat yuvMat = new Mat(height + (height / 2), width, CvType.CV_8UC1);
+            yuvMat.put(0, 0, data);
+            final Mat rgbMat = new Mat(height, width, CvType.CV_8UC3);
+            Imgproc.cvtColor(yuvMat, rgbMat, Imgproc.COLOR_YUV2RGB_I420, 3);
+            yuvMat.release();
+            return rgbMat;
+        }
+
+        // If pixel stride is 2 there is padding between each pixel
+        // converting it to NV21 by filling the gaps of the v plane with the u values
+        vb.get(data, ySize, vSize);
+        for (int i = 0; i < uSize; i += 2) {
+            data[ySize + i + 1] = ub.get(i);
+        }
+
+        final Mat yuvMat = new Mat(height + (height / 2), width, CvType.CV_8UC1);
+        yuvMat.put(0, 0, data);
+        final Mat rgbMat = new Mat(height, width, CvType.CV_8UC3);
+        Imgproc.cvtColor(yuvMat, rgbMat, Imgproc.COLOR_YUV2RGB_NV21, 3);
+        yuvMat.release();
+        return rgbMat;
+    }
+
+    private List<ContourData> openCVProcessContour(Mat grey) {
+        return openCVProcessContour(grey, null);
+    }
+
+    private List<ContourData> openCVProcessContour(Mat grey, Mat mat) {
+        final List<ContourData> data = new ArrayList<>();
         final List<MatOfPoint> contours = new ArrayList<>();
-        Imgproc.findContours(mat, contours, new Mat(), Imgproc.RETR_TREE,
+        Imgproc.findContours(grey, contours, new Mat(), Imgproc.RETR_TREE,
                 Imgproc.CHAIN_APPROX_SIMPLE);
+        if (mat != null) {
+            Imgproc.drawContours(mat, contours, -1, new Scalar(0, 255, 0), 1);
+        }
         for (int i = 0; i < contours.size(); i++) {
-            if (javaCameraView != null) {
-                Imgproc.drawContours(processed, contours, i, new Scalar(0, 255, 0), 1);
-            }
             final Rect r = Imgproc.boundingRect(contours.get(i));
-            //if (r.height < mat.height() - 50 && r.width < mat.width() - 50) {
+            if (r.height > 10 && r.height < grey.height() - 10
+                    && r.width > 10 && r.width < grey.width() - 10) {
                 final Point bottomRight = new Point(r.x + r.width, r.y + r.height);
                 final Point topLeft = new Point(r.x, r.y);
-                contourData.add(new ContourData(bottomRight, topLeft));
-                // if (javaCameraView != null) {
-                    Imgproc.rectangle(processed, topLeft, bottomRight, new Scalar(0, 255, 0), 8);
-                // }
-            //}
-        }
-        mat.release();
-        openCVProcessedMat = processed;
-
-        if (saveImageNow) {
-            if (saveData.isExternalStorageUseable()) {
-                final File directory = saveData.getExternalStorageDirectory(
-                        Environment.DIRECTORY_PICTURES,"test");
-                if (directory != null) {
-                    try {
-                        final Bitmap bmp = Bitmap.createBitmap(processed.cols(), processed.rows(),
-                                Bitmap.Config.ARGB_8888);
-                        Utils.matToBitmap(processed, bmp);
-                        if (arFragment != null) {
-                            saveData.saveBitmap(bmp, "test_ar",
-                                    directory);
-                        }
-                        else {
-                            saveData.saveBitmap(bmp, "test_opencv",
-                                    directory);
-                        }
-                    }
-                    catch (IOException e) {
-                        activity.handleWarning(TAG, e);
-                    }
+                data.add(new ContourData(bottomRight, topLeft));
+                if (mat != null) {
+                    Imgproc.rectangle(mat, topLeft, bottomRight, new Scalar(0, 255, 0), 4);
                 }
             }
-            saveImageNow = false;
         }
-        Log.d(TAG, "Contours processed.");
+
+        Log.d(TAG, contours.size() + " contours processed.");
+        return data;
+    }
+
+    private void saveImage(Mat mat) {
+        if (saveData.isExternalStorageUseable()) {
+            final File directory = saveData.getExternalStorageDirectory(
+                    Environment.DIRECTORY_PICTURES,"test");
+            if (directory != null) {
+                try {
+                    final Bitmap bmp = Bitmap.createBitmap(mat.cols(), mat.rows(),
+                            Bitmap.Config.ARGB_8888);
+                    Utils.matToBitmap(mat, bmp);
+                    if (arFragment != null) {
+                        saveData.saveBitmap(bmp, "test_ar",
+                                directory);
+                    }
+                    else {
+                        saveData.saveBitmap(bmp, "test_opencv",
+                                directory);
+                    }
+                }
+                catch (IOException e) {
+                    activity.handleWarning(TAG, e);
+                }
+            }
+        }
     }
 
     @Override
@@ -389,8 +428,16 @@ public class SurfaceProcessor
         if (openCVProcessedMat != null) {
             openCVProcessedMat.release();
         }
-        final Mat mat = inputFrame.rgba();
-        openCVProcessContour(mat, Imgproc.COLOR_BGR2GRAY);
+        openCVProcessedMat = inputFrame.rgba();
+        final Mat greyMat = new Mat();
+        openCVProcessedMat.copyTo(greyMat);
+        Imgproc.cvtColor(greyMat, greyMat, Imgproc.COLOR_BGR2GRAY);
+        openCVProcessContour(greyMat, openCVProcessedMat);
+        greyMat.release();
+        if (saveDataNow) {
+            saveImage(openCVProcessedMat);
+            saveDataNow = false;
+        }
         return openCVProcessedMat;
     }
 

@@ -1,18 +1,11 @@
 package io.github.cshadd.ar_snfmi_android;
 
 import android.Manifest;
-import android.graphics.Bitmap;
-import android.graphics.ImageFormat;
-import android.graphics.Rect;
-import android.graphics.YuvImage;
-import android.media.Image;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-
 import androidx.annotation.Nullable;
-
 import com.google.ar.sceneform.ux.ArFragment;
 
 public class CARFragmentWrapper
