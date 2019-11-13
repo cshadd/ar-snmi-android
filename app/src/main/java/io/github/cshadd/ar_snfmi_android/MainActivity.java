@@ -23,7 +23,7 @@ public class MainActivity
 
 
         final FloatingActionButton fab = findViewById(R.id.fab);
-        fab.setOnClickListener(view -> processor.saveImageNow = true);
+        fab.setOnClickListener(view -> processor.saveDataNow = true);
 
         Log.i(TAG, "I love navigation!");
     }

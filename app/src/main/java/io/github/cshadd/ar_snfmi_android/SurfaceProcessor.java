@@ -55,7 +55,7 @@ import java.util.Collection;
 import java.util.List;
 
 public class SurfaceProcessor
-    implements JavaCameraView.CvCameraViewListener2 {
+    implements CJavaCameraViewWrapper.CvCameraViewListener2 {
     private static final double MIN_OPENGL_VERSION = 3.0;
     private static final String TAG = "KAPLAN-PROCESSOR";
 
@@ -135,8 +135,8 @@ public class SurfaceProcessor
         saveDataNow = false;
 
         final FragmentManager fragmentManager = activity.getSupportFragmentManager();
-        arFragment = (CARFragmentWrapper)fragmentManager.findFragmentById(R.id.ar);
-        // javaCameraView = activity.findViewById(R.id.java_cam);
+        // arFragment = (CARFragmentWrapper)fragmentManager.findFragmentById(R.id.ar);
+        javaCameraView = activity.findViewById(R.id.java_cam);
 
         if (javaCameraView != null) {
             Log.d(TAG, "OpenCV debug mode.");
@@ -424,7 +424,7 @@ public class SurfaceProcessor
     }
 
     @Override
-    public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
+    public Mat onCameraFrame(CJavaCameraViewWrapper.CvCameraViewFrame inputFrame) {
         if (openCVProcessedMat != null) {
             openCVProcessedMat.release();
         }

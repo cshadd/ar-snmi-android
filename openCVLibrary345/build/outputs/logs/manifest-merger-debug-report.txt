@@ -1,37 +1,37 @@
 -- Merging decision tree log ---
 manifest
-ADDED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml:2:1-7:12
-INJECTED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml:2:1-7:12
-INJECTED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml:2:1-7:12
-INJECTED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml:2:1-7:12
-INJECTED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml:2:1-7:12
-INJECTED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml:2:1-7:12
-INJECTED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml:2:1-7:12
+ADDED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml:2:1-7:12
+INJECTED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml:2:1-7:12
+INJECTED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml:2:1-7:12
+INJECTED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml:2:1-7:12
+INJECTED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml:2:1-7:12
+INJECTED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml:2:1-7:12
+INJECTED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml:2:1-7:12
 	package
-		ADDED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml:3:7-27
-		INJECTED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
-		INJECTED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
+		ADDED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml:3:7-27
+		INJECTED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
+		INJECTED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
 	android:versionName
-		ADDED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml:5:7-34
-		INJECTED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
-		INJECTED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
+		ADDED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml:5:7-34
+		INJECTED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
+		INJECTED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
 	xmlns:android
-		ADDED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml:2:11-69
+		ADDED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml:2:11-69
 	android:versionCode
-		ADDED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml:4:7-33
-		INJECTED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
-		INJECTED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
+		ADDED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml:4:7-33
+		INJECTED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
+		INJECTED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
 uses-sdk
-INJECTED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml reason: use-sdk injection requested
-INJECTED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
-INJECTED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
-INJECTED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
-INJECTED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
+INJECTED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
+INJECTED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
+INJECTED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
+INJECTED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
 	android:targetSdkVersion
-		INJECTED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
-		ADDED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
-		INJECTED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
+		INJECTED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
+		ADDED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
+		INJECTED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
 	android:minSdkVersion
-		INJECTED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
-		ADDED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
-		INJECTED from D:\Users\Christian\Documents\School\Classes\2019\Fall 2019\COMP 528\Research Project\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
+		INJECTED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
+		ADDED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
+		INJECTED from C:\Users\chris\Desktop\ar-snmi-android\openCVLibrary345\src\main\AndroidManifest.xml
