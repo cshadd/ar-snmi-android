@@ -77,7 +77,7 @@ public class SurfaceProcessor
     private AnchorNode cautionModelAnchorNode;
     private TransformableNode cautionModelNode;
     private ModelRenderable cautionModelRenderable;
-    private List<ContourData> contourData;
+    private List<ContourBoxData> contourBoxData;
     private boolean isLocationAllowed;
     private CJavaCameraViewWrapper javaCameraView;
     private Sensor lightSensor;
@@ -95,11 +95,11 @@ public class SurfaceProcessor
         this.activity = activity;
     }
 
-    private static class ContourData {
+    private static class ContourBoxData {
         private Point bottomRight;
         private Point topLeft;
 
-        ContourData(Point bottomRight, Point topLeft) {
+        ContourBoxData(Point bottomRight, Point topLeft) {
             this.bottomRight = bottomRight;
             this.topLeft = topLeft;
         }
@@ -204,7 +204,7 @@ public class SurfaceProcessor
                     final Mat greyMat = new Mat();
                     mat.copyTo(greyMat);
                     Imgproc.cvtColor(greyMat, greyMat, Imgproc.COLOR_RGB2GRAY);
-                    contourData = openCVProcessContour(greyMat, mat);
+                    contourBoxData = openCVProcessContour(greyMat, mat);
                     greyMat.release();
                     if (saveDataNow) {
                         openCVProcessedMat = mat;
@@ -434,12 +434,12 @@ public class SurfaceProcessor
         return rgbMat;
     }
 
-    private List<ContourData> openCVProcessContour(Mat grey) {
+    private List<ContourBoxData> openCVProcessContour(Mat grey) {
         return openCVProcessContour(grey, null);
     }
 
-    private List<ContourData> openCVProcessContour(Mat grey, Mat mat) {
-        final List<ContourData> data = new ArrayList<>();
+    private List<ContourBoxData> openCVProcessContour(Mat grey, Mat mat) {
+        final List<ContourBoxData> data = new ArrayList<>();
         final List<MatOfPoint> contours = new ArrayList<>();
         Imgproc.findContours(grey, contours, new Mat(), Imgproc.RETR_TREE,
                 Imgproc.CHAIN_APPROX_SIMPLE);
@@ -452,7 +452,7 @@ public class SurfaceProcessor
                     && r.width > 10 && r.width < grey.width() - 10) {
                 final Point bottomRight = new Point(r.x + r.width, r.y + r.height);
                 final Point topLeft = new Point(r.x, r.y);
-                data.add(new ContourData(bottomRight, topLeft));
+                data.add(new ContourBoxData(bottomRight, topLeft));
                 if (mat != null) {
                     Imgproc.rectangle(mat, topLeft, bottomRight, new Scalar(0, 255, 0), 4);
                 }
@@ -502,8 +502,8 @@ public class SurfaceProcessor
                                 "Lighting (Lux)",
                                 "Weather",
                                 "Surface Type",
-                                "OpenCV Valid Contours",
-                                "OpenCV Total Contours",
+                                "OpenCV Valid Contour Bounding Boxes",
+                                "OpenCV Total Contour Bounding Boxes",
                                 "AR Core Valid Caution Objects",
                                 "AR Core Total Caution Objects Generated",
                         },
@@ -519,7 +519,7 @@ public class SurfaceProcessor
                             "DEFINE",
                             "DEFINE",
                             "DEFINE",
-                            contourData.size() + "",
+                            contourBoxData.size() + "",
                             "DEFINE",
                             "DEFINE"
                     },
@@ -554,7 +554,7 @@ public class SurfaceProcessor
         final Mat greyMat = new Mat();
         openCVProcessedMat.copyTo(greyMat);
         Imgproc.cvtColor(greyMat, greyMat, Imgproc.COLOR_BGR2GRAY);
-        contourData = openCVProcessContour(greyMat, openCVProcessedMat);
+        contourBoxData = openCVProcessContour(greyMat, openCVProcessedMat);
         greyMat.release();
         if (saveDataNow) {
             saveData();
