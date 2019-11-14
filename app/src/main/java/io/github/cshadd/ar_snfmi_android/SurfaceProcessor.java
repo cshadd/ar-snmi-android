@@ -204,7 +204,7 @@ public class SurfaceProcessor
                     final Mat greyMat = new Mat();
                     mat.copyTo(greyMat);
                     Imgproc.cvtColor(greyMat, greyMat, Imgproc.COLOR_RGB2GRAY);
-                    contourBoxData = openCVProcessContour(greyMat, mat);
+                    contourBoxData = openCVProcessMajorContour(greyMat, mat);
                     greyMat.release();
                     if (saveDataNow) {
                         openCVProcessedMat = mat;
@@ -435,16 +435,16 @@ public class SurfaceProcessor
     }
 
     private List<ContourBoxData> openCVProcessContour(Mat grey) {
-        return openCVProcessContour(grey, null);
+        return openCVProcessMajorContour(grey, null);
     }
 
-    private List<ContourBoxData> openCVProcessContour(Mat grey, Mat mat) {
+    private List<ContourBoxData> openCVProcessMajorContour(Mat grey, Mat mat) {
         final List<ContourBoxData> data = new ArrayList<>();
         final List<MatOfPoint> contours = new ArrayList<>();
         Imgproc.findContours(grey, contours, new Mat(), Imgproc.RETR_TREE,
                 Imgproc.CHAIN_APPROX_SIMPLE);
         if (mat != null) {
-            Imgproc.drawContours(mat, contours, -1, new Scalar(0, 255, 0), 1);
+            Imgproc.drawContours(mat, contours, -1, new Scalar(0, 250, 0), 1);
         }
         for (int i = 0; i < contours.size(); i++) {
             final Rect r = Imgproc.boundingRect(contours.get(i));
@@ -454,7 +454,7 @@ public class SurfaceProcessor
                 final Point topLeft = new Point(r.x, r.y);
                 data.add(new ContourBoxData(bottomRight, topLeft));
                 if (mat != null) {
-                    Imgproc.rectangle(mat, topLeft, bottomRight, new Scalar(0, 255, 0), 4);
+                    Imgproc.rectangle(mat, topLeft, bottomRight, new Scalar(0, 250, 0), 4);
                 }
             }
         }
@@ -530,7 +530,7 @@ public class SurfaceProcessor
 
             final Bitmap bmp = Bitmap.createBitmap(openCVProcessedMat.cols(),
                     openCVProcessedMat.rows(),
-                    Bitmap.Config.ARGB_8888);
+                    Bitmap.Config.RGB_565);
             Utils.matToBitmap(openCVProcessedMat, bmp);
             if (arFragment != null) {
                 saveData.saveBitmap(bmp, "test_ar_" + System.currentTimeMillis()
@@ -547,14 +547,12 @@ public class SurfaceProcessor
 
     @Override
     public Mat onCameraFrame(CJavaCameraViewWrapper.CvCameraViewFrame inputFrame) {
-        if (openCVProcessedMat != null) {
-            openCVProcessedMat.release();
-        }
         openCVProcessedMat = inputFrame.rgba();
-        final Mat greyMat = new Mat();
+        final Mat greyMat = new Mat(openCVProcessedMat.rows(), openCVProcessedMat.cols(),
+                CvType.CV_8UC1);
         openCVProcessedMat.copyTo(greyMat);
-        Imgproc.cvtColor(greyMat, greyMat, Imgproc.COLOR_BGR2GRAY);
-        contourBoxData = openCVProcessContour(greyMat, openCVProcessedMat);
+        Imgproc.cvtColor(greyMat, greyMat, Imgproc.COLOR_RGB2GRAY);
+        contourBoxData = openCVProcessMajorContour(greyMat, openCVProcessedMat);
         greyMat.release();
         if (saveDataNow) {
             saveData();
@@ -564,9 +562,7 @@ public class SurfaceProcessor
     }
 
     @Override
-    public void onCameraViewStarted(int width, int height) {
-        openCVProcessedMat = new Mat(width, height, CvType.CV_8UC4);
-    }
+    public void onCameraViewStarted(int width, int height) { }
 
     @Override
     public void onCameraViewStopped() {
