@@ -1,6 +1,5 @@
 package io.github.cshadd.ar_snfmi_android;
 
-import android.app.Application;
 import android.util.Log;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;

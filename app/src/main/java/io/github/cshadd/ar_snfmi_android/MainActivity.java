@@ -5,7 +5,6 @@ import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.EditText;
-
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
 public class MainActivity
