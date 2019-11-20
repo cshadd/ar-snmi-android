@@ -2,7 +2,6 @@ package io.github.cshadd.ar_snfmi_android;
 
 import android.os.Bundle;
 import android.util.Log;
-import android.view.View;
 import android.view.WindowManager;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
@@ -23,10 +22,16 @@ public class MainActivity
         processor.onCreate();
 
 
-        final FloatingActionButton fab = findViewById(R.id.fab);
-        fab.setOnClickListener(v -> {
-            processor.saveDataNow = true;
-            handleInfo(TAG, "Saved data.");
+        final FloatingActionButton fabBad = findViewById(R.id.fab_bad);
+        fabBad.setOnClickListener(v -> {
+            processor.saveDataNow(false);
+            handleInfo(TAG, "Trying to save data.");
+        });
+
+        final FloatingActionButton fabGood = findViewById(R.id.fab_good);
+        fabGood.setOnClickListener(v -> {
+            processor.saveDataNow(true);
+            handleInfo(TAG, "Trying to save data.");
         });
 
         Log.d(TAG, "I love navigation!");

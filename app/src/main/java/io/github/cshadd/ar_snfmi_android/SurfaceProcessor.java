@@ -21,10 +21,11 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
+import android.widget.EditText;
+
 import androidx.fragment.app.FragmentManager;
 import com.google.ar.core.Anchor;
 import com.google.ar.core.AugmentedImage;
-import com.google.ar.core.Camera;
 import com.google.ar.core.Config;
 import com.google.ar.core.Frame;
 import com.google.ar.core.Pose;
@@ -78,7 +79,7 @@ public class SurfaceProcessor
     private TransformableNode cautionModelNode;
     private ModelRenderable cautionModelRenderable;
     private List<ContourBoxData> contourBoxData;
-    private boolean isLocationAllowed;
+    private boolean isLastDataGood;
     private CJavaCameraViewWrapper javaCameraView;
     private Sensor lightSensor;
     private Location location;
@@ -87,30 +88,45 @@ public class SurfaceProcessor
     private BaseLoaderCallback openCVLoaderCallback;
     private Mat openCVProcessedMat;
     private SaveData saveData;
+    private boolean saveDataNow;
     private SensorManager sensorManager;
-
-    boolean saveDataNow;
+    private boolean validARCoreCautionGenerated;
+    private int validContourBoxes;
 
     SurfaceProcessor(CommonActivity activity) {
         this.activity = activity;
     }
 
-    private static class ContourBoxData {
-        private Point bottomRight;
-        private Point topLeft;
+    private static final class ContourBoxData {
+        private Rect rect;
 
-        ContourBoxData(Point bottomRight, Point topLeft) {
-            this.bottomRight = bottomRight;
-            this.topLeft = topLeft;
+        ContourBoxData(Rect rect) {
+            this.rect = rect;
         }
 
-        Point getBottomRight() {
-            return bottomRight;
+        int area() { return rect.width * rect.height; }
+
+        Point bottomLeftCoord() {
+            return new Point(rect.x,
+                    rect.y + rect.height);
         }
 
-        Point getTopLeft() {
-            return topLeft;
+        Point bottomRightCoord() {
+            return new Point(rect.x + rect.width,
+                    rect.y + rect.height);
         }
+
+        int height() { return rect.height; }
+
+        Point topLeft() {
+            return new Point(rect.x, rect.y);
+        }
+
+        Point topRight() {
+            return new Point(rect.x + rect.width, rect.y);
+        }
+
+        int width() { return rect.width; }
     }
 
     @SuppressLint("ObsoleteSdkInt")
@@ -154,8 +170,8 @@ public class SurfaceProcessor
         saveData = new SaveData(activity);
         saveDataNow = false;
 
-        // arFragment = (CARFragmentWrapper)fragmentManager.findFragmentById(R.id.ar);
-        javaCameraView = activity.findViewById(R.id.java_cam);
+        arFragment = (CARFragmentWrapper)fragmentManager.findFragmentById(R.id.ar);
+        // javaCameraView = activity.findViewById(R.id.java_cam);
         sensorManager = (SensorManager)activity.getSystemService(Context.SENSOR_SERVICE);
 
         if (javaCameraView != null) {
@@ -172,18 +188,11 @@ public class SurfaceProcessor
                         private static final String TAG = "WIEGLY";
 
                         @Override
-                        public void onPermissionsChecked(MultiplePermissionsReport report) {
-                            if (report.areAllPermissionsGranted()) {
-                                Log.d(TAG, "Needed permissions were granted!");
-                            } else {
-                                activity.handleWarning(TAG, "Needed permissions were not granted!");
-                            }
-                        }
+                        public void onPermissionsChecked(MultiplePermissionsReport report) { }
 
                         @Override
                         public void onPermissionRationaleShouldBeShown(
-                                List<PermissionRequest> permissions, PermissionToken token) {
-                        }
+                                List<PermissionRequest> permissions, PermissionToken token) { }
                     }).check();
         }
 
@@ -193,47 +202,41 @@ public class SurfaceProcessor
             final Frame frame = arSceneView.getArFrame();
             final TransformationSystem transformationSystem = arFragment.getTransformationSystem();
             if (frame != null) {
-                final Camera camera = frame.getCamera();
+                final com.google.ar.core.Camera frameCamera = frame.getCamera();
                 final Collection<AugmentedImage> augmentedImages = frame
                         .getUpdatedTrackables(AugmentedImage.class);
                 try {
                     final Image image = frame.acquireCameraImage();
                     final Mat mat = openCVConvertYuv420888ToMat(image, false);
                     Core.flip(mat.t(), mat, 1);
-                    // Imgproc.resize(mat, mat, new Size(arSceneView.getWidth(), arSceneView.getHeight()));
                     final Mat greyMat = new Mat();
                     mat.copyTo(greyMat);
                     Imgproc.cvtColor(greyMat, greyMat, Imgproc.COLOR_RGB2GRAY);
-                    contourBoxData = openCVProcessMajorContour(greyMat, mat);
+                    contourBoxData = openCVProcessContourBoxes(greyMat, mat);
                     greyMat.release();
-                    if (saveDataNow) {
-                        openCVProcessedMat = mat;
-                        saveData();
-                        saveDataNow = false;
-                    }
-                    mat.release();
-                    image.close();
 
                     if (cautionModelRenderable != null) {
-                        if (camera.getTrackingState() == TrackingState.TRACKING) {
+                        if (frameCamera.getTrackingState() == TrackingState.TRACKING) {
                             final Session session = arSceneView.getSession();
-                            final Config config;
                             if (session != null) {
-                                config = session.getConfig();
+                                final Config config = session.getConfig();
                                 config.setFocusMode(Config.FocusMode.AUTO);
                                 session.configure(config);
+                                final com.google.ar.sceneform.Camera sceneCamera = scene.getCamera();
 
                                 if (cautionModelAnchor != null) {
                                     cautionModelAnchor.detach();
                                 }
-                                // Translation must be changed here
-                                /*cautionModelAnchor = session.createAnchor(camera.getPose()
-                                        .compose(Pose.makeTranslation(1,0, 0))
-                                        .extractTranslation());*/
-                                cautionModelAnchor = session.createAnchor(new Pose(
-                                        new float[]{0, 0, -1},
-                                        new float[]{0, 0, 0, 0}
-                                ));
+                                final Vector3 cameraPos = sceneCamera.getWorldPosition();
+                                final Vector3 cameraForward = sceneCamera.getForward();
+                                final Quaternion cameraRot = sceneCamera.getWorldRotation();
+                                final Vector3 position = Vector3.add(cameraPos,
+                                        cameraForward.scaled(1.0f));
+                                final Quaternion rotY180 = Quaternion.multiply(cameraRot,
+                                        new Quaternion(Vector3.up(), 180f));
+                                final Pose pose = Pose.makeTranslation(position.x, position.y,
+                                        position.z);
+                                cautionModelAnchor = session.createAnchor(pose);
 
                                 cautionModelAnchorNode = new AnchorNode(cautionModelAnchor);
                                 cautionModelAnchorNode.setParent(scene);
@@ -243,18 +246,38 @@ public class SurfaceProcessor
                                 }
                                 cautionModelNode = new TransformableNode(transformationSystem);
                                 cautionModelNode.setParent(cautionModelAnchorNode);
-                                cautionModelNode.setRenderable(cautionModelRenderable);
-                                cautionModelNode.setLocalRotation(Quaternion.axisAngle(
-                                        new Vector3(0f, 1f, 0), 180f));
+                                validARCoreCautionGenerated = false;
+                                validContourBoxes = 0;
+                                for (ContourBoxData boxData : contourBoxData) {
+                                    Log.d(TAG, "Contour Box Area: " + boxData.area());
+                                    Log.d(TAG, "Image height: " + image.getHeight());
+                                    Log.d(TAG, "Image width: " + image.getWidth());
+                                    if (boxData.height() >= (image.getHeight() / 8)
+                                            && boxData.height() < image.getHeight()
+                                            && boxData.width() >= (image.getWidth() / 8)
+                                            && boxData.width() < image.getWidth()) {
+                                        validARCoreCautionGenerated = true;
+                                        validContourBoxes++;
+                                        cautionModelNode.setRenderable(cautionModelRenderable);
+                                    }
+                                }
+                                if (saveDataNow) {
+                                    openCVProcessedMat = mat;
+                                    saveData();
+                                    saveDataNow = false;
+                                }
 
-                                // Also put here if nodes were shown...
+                                cautionModelNode.setLocalRotation(rotY180);
                             }
                         }
-                    } else {
+                    }
+                    else {
                         activity.handleWarning(TAG, "Renderable not loaded.");
                     }
-                    Log.d(TAG, "AR scene processed.");
-                } catch (NotYetAvailableException e) {
+                    mat.release();
+                    image.close();
+                }
+                catch (NotYetAvailableException e) {
                     activity.handleWarning(TAG, e);
                 }
             }
@@ -434,11 +457,7 @@ public class SurfaceProcessor
         return rgbMat;
     }
 
-    private List<ContourBoxData> openCVProcessContour(Mat grey) {
-        return openCVProcessMajorContour(grey, null);
-    }
-
-    private List<ContourBoxData> openCVProcessMajorContour(Mat grey, Mat mat) {
+    private List<ContourBoxData> openCVProcessContourBoxes(Mat grey, Mat mat) {
         final List<ContourBoxData> data = new ArrayList<>();
         final List<MatOfPoint> contours = new ArrayList<>();
         Imgproc.findContours(grey, contours, new Mat(), Imgproc.RETR_TREE,
@@ -446,20 +465,16 @@ public class SurfaceProcessor
         if (mat != null) {
             Imgproc.drawContours(mat, contours, -1, new Scalar(0, 250, 0), 1);
         }
-        for (int i = 0; i < contours.size(); i++) {
-            final Rect r = Imgproc.boundingRect(contours.get(i));
-            if (r.height > 10 && r.height < grey.height() - 10
-                    && r.width > 10 && r.width < grey.width() - 10) {
-                final Point bottomRight = new Point(r.x + r.width, r.y + r.height);
-                final Point topLeft = new Point(r.x, r.y);
-                data.add(new ContourBoxData(bottomRight, topLeft));
-                if (mat != null) {
-                    Imgproc.rectangle(mat, topLeft, bottomRight, new Scalar(0, 250, 0), 4);
-                }
+        for (MatOfPoint contour : contours) {
+            final Rect r = Imgproc.boundingRect(contour);
+            final Point bottomRight = new Point(r.x + r.width, r.y + r.height);
+            final Point topLeft = new Point(r.x, r.y);
+            data.add(new ContourBoxData(r));
+            if (mat != null) {
+                Imgproc.rectangle(mat, topLeft, bottomRight, new Scalar(0, 250, 0), 4);
             }
         }
 
-        Log.d(TAG, contours.size() + " contours processed.");
         return data;
     }
 
@@ -473,7 +488,6 @@ public class SurfaceProcessor
             String address = "DEFINE";
             String gps = "DEFINE";
             if (location != null) {
-
                 final Geocoder gc = new Geocoder(activity);
                 if(Geocoder.isPresent()){
                     try {
@@ -491,6 +505,12 @@ public class SurfaceProcessor
                         + "Alt: " + location.getAltitude();
             }
 
+            final EditText ptSurfaceType = activity.findViewById(R.id.pt_surface);
+
+            boolean arCoreObjectExpected = validARCoreCautionGenerated;
+            if (!isLastDataGood) {
+                arCoreObjectExpected = !validARCoreCautionGenerated;
+            }
 
             final File csvFile = new File(csvDirectory, "test.csv");
             if (!csvFile.exists()) {
@@ -500,12 +520,11 @@ public class SurfaceProcessor
                                 "Location GPS",
                                 "Location Address",
                                 "Lighting (Lux)",
-                                "Weather",
                                 "Surface Type",
                                 "OpenCV Valid Contour Bounding Boxes",
                                 "OpenCV Total Contour Bounding Boxes",
-                                "AR Core Valid Caution Objects",
-                                "AR Core Total Caution Objects Generated",
+                                "AR Core Object Expected",
+                                "AR Core Object Generated"
                         },
                         "test.csv", csvDirectory);
             }
@@ -516,12 +535,11 @@ public class SurfaceProcessor
                             gps,
                             address,
                             lux + "",
-                            "DEFINE",
-                            "DEFINE",
-                            "DEFINE",
+                            ptSurfaceType.getText() + "",
+                            validContourBoxes + "",
                             contourBoxData.size() + "",
-                            "DEFINE",
-                            "DEFINE"
+                            arCoreObjectExpected + "",
+                            validARCoreCautionGenerated + ""
                     },
                     "test.csv", csvDirectory);
 
@@ -545,6 +563,11 @@ public class SurfaceProcessor
         }
     }
 
+    void saveDataNow(boolean isGoodData) {
+        saveDataNow = true;
+        isLastDataGood = isGoodData;
+    }
+
     @Override
     public Mat onCameraFrame(CJavaCameraViewWrapper.CvCameraViewFrame inputFrame) {
         openCVProcessedMat = inputFrame.rgba();
@@ -552,7 +575,7 @@ public class SurfaceProcessor
                 CvType.CV_8UC1);
         openCVProcessedMat.copyTo(greyMat);
         Imgproc.cvtColor(greyMat, greyMat, Imgproc.COLOR_RGB2GRAY);
-        contourBoxData = openCVProcessMajorContour(greyMat, openCVProcessedMat);
+        contourBoxData = openCVProcessContourBoxes(greyMat, openCVProcessedMat);
         greyMat.release();
         if (saveDataNow) {
             saveData();
