@@ -10,6 +10,7 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
 public class MainActivity
         extends CommonActivity {
+    private static final boolean DEBUG_MODE = false;
     private static final String TAG = "NOGA";
 
     private boolean isToggled;
@@ -19,9 +20,14 @@ public class MainActivity
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        setContentView(R.layout.activity_main);
+        if (DEBUG_MODE) {
+            setContentView(R.layout.activity_main_opencv);
+        }
+        else {
+            setContentView(R.layout.activity_main_ar);
+        }
 
-        processor = new SurfaceProcessor(this);
+        processor = new SurfaceProcessor(this, DEBUG_MODE);
         processor.onCreate();
 
         isToggled = false;

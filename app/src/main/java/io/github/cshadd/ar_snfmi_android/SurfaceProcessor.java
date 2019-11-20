@@ -5,7 +5,6 @@ import android.annotation.SuppressLint;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -66,7 +65,7 @@ import java.util.List;
 public class SurfaceProcessor
         implements CJavaCameraViewWrapper.CvCameraViewListener2, LocationListener,
         SensorEventListener {
-    private static final int FALLBACK_THRESHOLD = 32;
+    private static final int FALLBACK_THRESHOLD = 10;
     private static final double MIN_OPENGL_VERSION = 3.0;
     private static final String TAG = "KAPLAN-PROCESSOR";
 
@@ -77,6 +76,7 @@ public class SurfaceProcessor
     private AnchorNode cautionModelAnchorNode;
     private TransformableNode cautionModelNode;
     private ModelRenderable cautionModelRenderable;
+    private boolean debugMode;
     private EditText etSurfaceType;
     private EditText etThreshold;
     private boolean isLastDataGood;
@@ -93,8 +93,9 @@ public class SurfaceProcessor
     private boolean validARCoreCautionGenerated;
     private int validContourBoxes;
 
-    SurfaceProcessor(CommonActivity activity) {
+    SurfaceProcessor(CommonActivity activity, boolean debugMode) {
         this.activity = activity;
+        this.debugMode = debugMode;
     }
 
     @SuppressLint("ObsoleteSdkInt")
@@ -140,8 +141,12 @@ public class SurfaceProcessor
 
         final FragmentManager fragmentManager = activity.getSupportFragmentManager();
 
-        arFragment = (CARFragmentWrapper)fragmentManager.findFragmentById(R.id.ar);
-        // javaCameraView = activity.findViewById(R.id.java_cam);
+        if (debugMode) {
+            javaCameraView = activity.findViewById(R.id.java_cam);
+        }
+        else {
+            arFragment = (CARFragmentWrapper)fragmentManager.findFragmentById(R.id.ar);
+        }
         etSurfaceType = activity.findViewById(R.id.et_surface);
         etThreshold = activity.findViewById(R.id.et_threshold);
         sensorManager = (SensorManager)activity.getSystemService(Context.SENSOR_SERVICE);
@@ -438,17 +443,15 @@ public class SurfaceProcessor
         for (MatOfPoint contour : contours) {
             final CRect r = new CRect(Imgproc.boundingRect(contour));
             if (mat != null) {
-                if (r.height >= (height / threshold)
-                        && r.height < height
-                        && r.width >= (width / threshold)
-                        && r.width < width) {
+                if (r.height >= threshold
+                        && r.height < height - threshold
+                        && r.width >= threshold
+                        && r.width < width - threshold) {
+
                     validContourBoxes++;
                     Imgproc.rectangle(mat, r.tl(), r.br(), new Scalar(0, 0, 250), 4);
+                    Log.d(TAG, "Valid Contour Boxes: " + validContourBoxes);
                 }
-                else {
-                    Imgproc.rectangle(mat, r.tl(), r.br(), new Scalar(0, 250, 0), 4);
-                }
-
             }
         }
     }
