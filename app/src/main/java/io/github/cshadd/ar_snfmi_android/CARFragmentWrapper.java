@@ -8,7 +8,7 @@ import android.view.ViewGroup;
 import androidx.annotation.Nullable;
 import com.google.ar.sceneform.ux.ArFragment;
 
-public class CARFragmentWrapper
+public final class CARFragmentWrapper
         extends ArFragment {
     private static final String TAG = "KAPLAN-AR";
 

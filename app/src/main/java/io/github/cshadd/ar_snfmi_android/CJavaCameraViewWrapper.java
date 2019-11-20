@@ -29,7 +29,7 @@ import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 import java.util.List;
 
-public class CJavaCameraViewWrapper
+public final class CJavaCameraViewWrapper
         extends JavaCameraView {
     private static final String TAG = "KAPLAN-JAVACAM";
 

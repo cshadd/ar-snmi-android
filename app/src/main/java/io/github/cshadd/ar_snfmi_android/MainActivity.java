@@ -2,15 +2,18 @@ package io.github.cshadd.ar_snfmi_android;
 
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 import android.view.WindowManager;
+import android.widget.EditText;
+
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
 public class MainActivity
         extends CommonActivity {
     private static final String TAG = "NOGA";
 
+    private boolean isToggled;
     private SurfaceProcessor processor;
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -21,6 +24,10 @@ public class MainActivity
         processor = new SurfaceProcessor(this);
         processor.onCreate();
 
+        isToggled = false;
+
+        final EditText etSurfaceType = findViewById(R.id.et_surface);
+        final EditText etThreshold = findViewById(R.id.et_threshold);
 
         final FloatingActionButton fabBad = findViewById(R.id.fab_bad);
         fabBad.setOnClickListener(v -> {
@@ -32,6 +39,31 @@ public class MainActivity
         fabGood.setOnClickListener(v -> {
             processor.saveDataNow(true);
             handleInfo(TAG, "Trying to save data.");
+        });
+
+        etSurfaceType.setVisibility(View.INVISIBLE);
+        etThreshold.setVisibility(View.INVISIBLE);
+        fabBad.hide();
+        fabGood.hide();
+
+        final FloatingActionButton fabToggle = findViewById(R.id.fab_toggle);
+        fabToggle.setOnClickListener(v -> {
+            if (isToggled) {
+                etSurfaceType.setVisibility(View.INVISIBLE);
+                etThreshold.setVisibility(View.INVISIBLE);
+                fabBad.hide();
+                fabGood.hide();
+                handleInfo(TAG, "Hiding toggle.");
+                isToggled = false;
+            }
+            else {
+                etSurfaceType.setVisibility(View.VISIBLE);
+                etThreshold.setVisibility(View.VISIBLE);
+                fabBad.show();
+                fabGood.show();
+                handleInfo(TAG, "Showing toggle.");
+                isToggled = true;
+            }
         });
 
         Log.d(TAG, "I love navigation!");

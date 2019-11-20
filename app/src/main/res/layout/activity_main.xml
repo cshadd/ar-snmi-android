@@ -8,6 +8,43 @@
 
     <include layout="@layout/content_navigation" />
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <EditText
+            android:id="@+id/et_surface"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@color/colorEtBackground"
+            android:ems="10"
+            android:hint="@string/et_surface_hint"
+            android:importantForAutofill="no"
+            android:inputType="text" />
+
+        <EditText
+            android:id="@+id/et_threshold"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@color/colorEtBackground"
+            android:ems="10"
+            android:hint="@string/et_threshold_hint"
+            android:importantForAutofill="no"
+            android:inputType="number"
+            android:text="@string/et_threshold" />
+
+    </LinearLayout>
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_toggle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end"
+        android:layout_margin="@dimen/fab_margin"
+        app:backgroundTint="@color/colorFabToggle"
+        app:srcCompat="@android:drawable/ic_menu_view" />
+
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fab_bad"
         android:layout_width="wrap_content"
@@ -25,15 +62,5 @@
         android:layout_margin="@dimen/fab_margin"
         app:backgroundTint="@color/colorFabGood"
         app:srcCompat="@android:drawable/ic_menu_add" />
-
-    <EditText
-        android:id="@+id/pt_surface"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="@color/colorPtSurfaceBackground"
-        android:ems="10"
-        android:hint="@string/et_surface"
-        android:inputType="text"
-        android:importantForAutofill="no" />
 
 </FrameLayout>

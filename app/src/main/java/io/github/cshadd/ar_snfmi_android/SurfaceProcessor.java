@@ -5,6 +5,7 @@ import android.annotation.SuppressLint;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -22,7 +23,6 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
 import android.widget.EditText;
-
 import androidx.fragment.app.FragmentManager;
 import com.google.ar.core.Anchor;
 import com.google.ar.core.AugmentedImage;
@@ -53,8 +53,6 @@ import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
-import org.opencv.core.Point;
-import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.imgproc.Imgproc;
 import java.io.File;
@@ -68,6 +66,7 @@ import java.util.List;
 public class SurfaceProcessor
         implements CJavaCameraViewWrapper.CvCameraViewListener2, LocationListener,
         SensorEventListener {
+    private static final int FALLBACK_THRESHOLD = 32;
     private static final double MIN_OPENGL_VERSION = 3.0;
     private static final String TAG = "KAPLAN-PROCESSOR";
 
@@ -78,7 +77,8 @@ public class SurfaceProcessor
     private AnchorNode cautionModelAnchorNode;
     private TransformableNode cautionModelNode;
     private ModelRenderable cautionModelRenderable;
-    private List<ContourBoxData> contourBoxData;
+    private EditText etSurfaceType;
+    private EditText etThreshold;
     private boolean isLastDataGood;
     private CJavaCameraViewWrapper javaCameraView;
     private Sensor lightSensor;
@@ -97,38 +97,6 @@ public class SurfaceProcessor
         this.activity = activity;
     }
 
-    private static final class ContourBoxData {
-        private Rect rect;
-
-        ContourBoxData(Rect rect) {
-            this.rect = rect;
-        }
-
-        int area() { return rect.width * rect.height; }
-
-        Point bottomLeftCoord() {
-            return new Point(rect.x,
-                    rect.y + rect.height);
-        }
-
-        Point bottomRightCoord() {
-            return new Point(rect.x + rect.width,
-                    rect.y + rect.height);
-        }
-
-        int height() { return rect.height; }
-
-        Point topLeft() {
-            return new Point(rect.x, rect.y);
-        }
-
-        Point topRight() {
-            return new Point(rect.x + rect.width, rect.y);
-        }
-
-        int width() { return rect.width; }
-    }
-
     @SuppressLint("ObsoleteSdkInt")
     private void handleARSupport() {
         final ActivityManager activityManager = (ActivityManager) activity
@@ -141,10 +109,12 @@ public class SurfaceProcessor
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
             activity.handleError(TAG, "Unable to load ARCore. " +
                     "Sceneform requires Android N or later.");
-        } else if (Double.parseDouble(openGlVersionString) < MIN_OPENGL_VERSION) {
+        }
+        else if (Double.parseDouble(openGlVersionString) < MIN_OPENGL_VERSION) {
             activity.handleError(TAG, "Unable to load ARCore. " +
                     "Sceneform requires OpenGL ES 3.0 later.");
-        } else {
+        }
+        else {
             Log.d(TAG, "AR loaded!");
         }
     }
@@ -164,14 +134,16 @@ public class SurfaceProcessor
     }
 
     void onCreate() {
-        final FragmentManager fragmentManager = activity.getSupportFragmentManager();
-
         location = null;
         saveData = new SaveData(activity);
         saveDataNow = false;
 
+        final FragmentManager fragmentManager = activity.getSupportFragmentManager();
+
         arFragment = (CARFragmentWrapper)fragmentManager.findFragmentById(R.id.ar);
         // javaCameraView = activity.findViewById(R.id.java_cam);
+        etSurfaceType = activity.findViewById(R.id.et_surface);
+        etThreshold = activity.findViewById(R.id.et_threshold);
         sensorManager = (SensorManager)activity.getSystemService(Context.SENSOR_SERVICE);
 
         if (javaCameraView != null) {
@@ -188,7 +160,11 @@ public class SurfaceProcessor
                         private static final String TAG = "WIEGLY";
 
                         @Override
-                        public void onPermissionsChecked(MultiplePermissionsReport report) { }
+                        public void onPermissionsChecked(MultiplePermissionsReport report) {
+                            if (report.areAllPermissionsGranted()) {
+                                Log.d(TAG, "All permissions granted!");
+                            }
+                        }
 
                         @Override
                         public void onPermissionRationaleShouldBeShown(
@@ -212,7 +188,7 @@ public class SurfaceProcessor
                     final Mat greyMat = new Mat();
                     mat.copyTo(greyMat);
                     Imgproc.cvtColor(greyMat, greyMat, Imgproc.COLOR_RGB2GRAY);
-                    contourBoxData = openCVProcessContourBoxes(greyMat, mat);
+                    openCVContourProcessor(greyMat, mat, threshold());
                     greyMat.release();
 
                     if (cautionModelRenderable != null) {
@@ -247,19 +223,9 @@ public class SurfaceProcessor
                                 cautionModelNode = new TransformableNode(transformationSystem);
                                 cautionModelNode.setParent(cautionModelAnchorNode);
                                 validARCoreCautionGenerated = false;
-                                validContourBoxes = 0;
-                                for (ContourBoxData boxData : contourBoxData) {
-                                    Log.d(TAG, "Contour Box Area: " + boxData.area());
-                                    Log.d(TAG, "Image height: " + image.getHeight());
-                                    Log.d(TAG, "Image width: " + image.getWidth());
-                                    if (boxData.height() >= (image.getHeight() / 8)
-                                            && boxData.height() < image.getHeight()
-                                            && boxData.width() >= (image.getWidth() / 8)
-                                            && boxData.width() < image.getWidth()) {
-                                        validARCoreCautionGenerated = true;
-                                        validContourBoxes++;
-                                        cautionModelNode.setRenderable(cautionModelRenderable);
-                                    }
+                                if (validContourBoxes > 0) {
+                                    validARCoreCautionGenerated = true;
+                                    cautionModelNode.setRenderable(cautionModelRenderable);
                                 }
                                 if (saveDataNow) {
                                     openCVProcessedMat = mat;
@@ -416,8 +382,6 @@ public class SurfaceProcessor
         final Image.Plane uPlane = image.getPlanes()[1];
         final Image.Plane vPlane = image.getPlanes()[2];
 
-        // Be aware that this size does not include the padding at the end, if there is any
-        // (e.g. if pixel stride is 2 the size is ySize / 2 - 1).
         final int uSize = uPlane.getBuffer().remaining();
         final int vSize = vPlane.getBuffer().remaining();
 
@@ -428,7 +392,6 @@ public class SurfaceProcessor
         final ByteBuffer ub = uPlane.getBuffer();
         final ByteBuffer vb = vPlane.getBuffer();
 
-        // Stride guaranteed to be the same for u and v planes
         final int uvPixelStride = uPlane.getPixelStride();
         if (uvPixelStride == 1) {
             uPlane.getBuffer().get(data, ySize, uSize);
@@ -442,8 +405,6 @@ public class SurfaceProcessor
             return rgbMat;
         }
 
-        // If pixel stride is 2 there is padding between each pixel
-        // converting it to NV21 by filling the gaps of the v plane with the u values
         vb.get(data, ySize, vSize);
         for (int i = 0; i < uSize; i += 2) {
             data[ySize + i + 1] = ub.get(i);
@@ -457,8 +418,17 @@ public class SurfaceProcessor
         return rgbMat;
     }
 
-    private List<ContourBoxData> openCVProcessContourBoxes(Mat grey, Mat mat) {
-        final List<ContourBoxData> data = new ArrayList<>();
+    private void openCVContourProcessor(Mat grey, Mat mat) {
+        openCVContourProcessor(grey, mat, 1, grey.height(), grey.width());
+    }
+
+    private void openCVContourProcessor(Mat grey, Mat mat, int threshold) {
+        openCVContourProcessor(grey, mat, threshold, grey.height(), grey.width());
+    }
+
+    private void openCVContourProcessor(Mat grey, Mat mat, int threshold,
+                                        int height, int width) {
+        validContourBoxes = 0;
         final List<MatOfPoint> contours = new ArrayList<>();
         Imgproc.findContours(grey, contours, new Mat(), Imgproc.RETR_TREE,
                 Imgproc.CHAIN_APPROX_SIMPLE);
@@ -466,16 +436,33 @@ public class SurfaceProcessor
             Imgproc.drawContours(mat, contours, -1, new Scalar(0, 250, 0), 1);
         }
         for (MatOfPoint contour : contours) {
-            final Rect r = Imgproc.boundingRect(contour);
-            final Point bottomRight = new Point(r.x + r.width, r.y + r.height);
-            final Point topLeft = new Point(r.x, r.y);
-            data.add(new ContourBoxData(r));
+            final CRect r = new CRect(Imgproc.boundingRect(contour));
             if (mat != null) {
-                Imgproc.rectangle(mat, topLeft, bottomRight, new Scalar(0, 250, 0), 4);
+                if (r.height >= (height / threshold)
+                        && r.height < height
+                        && r.width >= (width / threshold)
+                        && r.width < width) {
+                    validContourBoxes++;
+                    Imgproc.rectangle(mat, r.tl(), r.br(), new Scalar(0, 0, 250), 4);
+                }
+                else {
+                    Imgproc.rectangle(mat, r.tl(), r.br(), new Scalar(0, 250, 0), 4);
+                }
+
             }
         }
+    }
 
-        return data;
+    private int threshold() {
+        int threshold = FALLBACK_THRESHOLD;
+        try {
+            threshold = Integer.parseInt(etThreshold.getText() + "");
+        }
+        catch (NumberFormatException e) {
+            Log.e(TAG, e.getMessage());
+            e.fillInStackTrace();
+        }
+        return threshold;
     }
 
     private void saveData() {
@@ -505,8 +492,6 @@ public class SurfaceProcessor
                         + "Alt: " + location.getAltitude();
             }
 
-            final EditText ptSurfaceType = activity.findViewById(R.id.pt_surface);
-
             boolean arCoreObjectExpected = validARCoreCautionGenerated;
             if (!isLastDataGood) {
                 arCoreObjectExpected = !validARCoreCautionGenerated;
@@ -521,7 +506,7 @@ public class SurfaceProcessor
                                 "Location Address",
                                 "Lighting (Lux)",
                                 "Surface Type",
-                                "OpenCV Valid Contour Bounding Boxes",
+                                "Threshold",
                                 "OpenCV Total Contour Bounding Boxes",
                                 "AR Core Object Expected",
                                 "AR Core Object Generated"
@@ -535,9 +520,9 @@ public class SurfaceProcessor
                             gps,
                             address,
                             lux + "",
-                            ptSurfaceType.getText() + "",
+                            etSurfaceType.getText() + "",
+                            etThreshold.getText() + "",
                             validContourBoxes + "",
-                            contourBoxData.size() + "",
                             arCoreObjectExpected + "",
                             validARCoreCautionGenerated + ""
                     },
@@ -575,7 +560,7 @@ public class SurfaceProcessor
                 CvType.CV_8UC1);
         openCVProcessedMat.copyTo(greyMat);
         Imgproc.cvtColor(greyMat, greyMat, Imgproc.COLOR_RGB2GRAY);
-        contourBoxData = openCVProcessContourBoxes(greyMat, openCVProcessedMat);
+        openCVContourProcessor(greyMat, openCVProcessedMat, threshold());
         greyMat.release();
         if (saveDataNow) {
             saveData();

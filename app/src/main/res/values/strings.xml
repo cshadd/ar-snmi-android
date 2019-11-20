@@ -3,5 +3,7 @@
     <string name="action_exit">Exit</string>
     <string name="error_prefix">ar_snfmi_android Error: %1$s</string>
     <string name="warning_prefix">ar_snfmi_android Warning: %1$s</string>
-    <string name="et_surface">Surface Type</string>
+    <string name="et_surface_hint">Surface Type</string>
+    <string name="et_threshold">32</string>
+    <string name="et_threshold_hint">Threshold</string>
 </resources>
