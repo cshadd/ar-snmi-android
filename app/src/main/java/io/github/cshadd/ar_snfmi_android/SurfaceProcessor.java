@@ -511,8 +511,8 @@ public class SurfaceProcessor
                                 "Surface Type",
                                 "Threshold",
                                 "OpenCV Total Contour Bounding Boxes",
-                                "AR Core Object Expected",
-                                "AR Core Object Generated"
+                                "ARCore Object Expected",
+                                "ARCore Object Generated"
                         },
                         "test.csv", csvDirectory);
             }
